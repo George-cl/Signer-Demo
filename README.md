@@ -7,6 +7,9 @@ This aim serves to demostrate how a deploy could be created with the `casper-cli
 ![Signer-Demo-App](https://user-images.githubusercontent.com/69711689/114162806-5b51f380-9921-11eb-93f2-9713dc53ad7c.png)
 
 ## Get started
+
+### Before you begin
+Install the Signer extension from [here](https://chrome.google.com/webstore/detail/casperlabs-signer/djhndpllfiibmcdbnmaaahkhchcoijce). (Requires Chrome browser)
 ### `yarn start`
 
 Runs the app in the development mode.\
