@@ -4,6 +4,8 @@
 
 This aim serves to demostrate how a deploy could be created with the `casper-client-sdk` and signed with the **CasperLabs Signer** keeping it as simple as possible.
 
+![Signer-Demo-App](https://user-images.githubusercontent.com/69711689/114162806-5b51f380-9921-11eb-93f2-9713dc53ad7c.png)
+
 ## Get started
 ### `yarn start`
 
