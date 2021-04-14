@@ -81,13 +81,11 @@ export default class App extends React.Component {
   }
 
   async signDeploy() {
-    if (!await this.checkConnection()) {
-      alert("Connect to Signer first!");
-      return;
-    }
-    let key = await Signer.getSelectedPublicKeyBase64();
-    if (!key) {
-      alert("Create an account in the Signer first!");
+    let key;
+    try {
+      key = await Signer.getSelectedPublicKeyBase64();
+    } catch (err) {
+      alert(err);
       return;
     }
     this.setState({signingKey: key});
@@ -99,8 +97,7 @@ export default class App extends React.Component {
         key
       );
     } catch (err) {
-      alert("There was an error signing :(");
-      console.log(err);
+      alert(err);
       return;
     }
     this.setState({signature: signature});
