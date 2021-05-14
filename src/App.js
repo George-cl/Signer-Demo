@@ -16,11 +16,10 @@ import CloseIcon from '@material-ui/icons/Close';
 
 import { 
   Signer,
-  encodeBase16,
   DeployUtil,
   PublicKey,
-  decodeBase64,
   CasperServiceByJsonRPC,
+  encodeBase16,
 } from 'casper-client-sdk';
 
 export default class App extends React.Component {
@@ -41,12 +40,30 @@ export default class App extends React.Component {
     this.casperService = new CasperServiceByJsonRPC('Signer-Demo-url')
   }
 
+  componentDidMount() {
+    document.addEventListener("signerConnected", event => {
+      alert(event.detail.name);
+    });
+  }
+
   handleChange(event) {
     this.setState({transferTag: event.target.value});
   }
 
   handleClose() {
     this.setState({modalOpen: false});
+  }
+
+  truncateString(
+    longString,
+    startChunk,
+    endChunk
+  ){
+    return (
+      longString.substring(0, startChunk) +
+      '...' +
+      longString.substring(longString.length - endChunk)
+    );
   }
 
   async checkConnection() {
@@ -63,16 +80,18 @@ export default class App extends React.Component {
 
   async createDummyDeploy(accountPublicKey) {
 
+    let publicKey = PublicKey.fromHex(accountPublicKey);
+
     let sessionCode = DeployUtil.ExecutableDeployItem.newTransfer(
       200,
-      PublicKey.fromEd25519(decodeBase64(accountPublicKey)),
+      publicKey,
       null,
       this.state.transferTag
     )
 
     return DeployUtil.makeDeploy(
       new DeployUtil.DeployParams(
-        PublicKey.fromEd25519(decodeBase64(accountPublicKey)),
+        publicKey,
         "Signer-Demo-Chain"
       ),
       sessionCode,
@@ -81,36 +100,33 @@ export default class App extends React.Component {
   }
 
   async signDeploy() {
-    let key;
-    try {
-      key = await Signer.getSelectedPublicKeyBase64();
-    } catch (err) {
-      alert(err);
-      return;
-    }
+    let key = await Signer.getActivePublicKey()
+      .catch(err => {
+        alert(err);
+        return;
+      });
     this.setState({signingKey: key});
     let deploy = await this.createDummyDeploy(key);
-    let signature;
+    let deployJSON = DeployUtil.deployToJson(deploy);
+    let signedDeployJSON;
     try {
-      signature = await Signer.sign(
-        encodeBase16(deploy.hash),
-        key
-      );
+      signedDeployJSON = await window.casperlabsHelper.sign(deployJSON, key);
     } catch (err) {
-      alert(err);
-      return;
+      if (err.message === 'User cancelled signing') {
+        alert('User Cancelled Signing!');
+        return;
+      } else {
+        alert(err);
+        return;
+      }
     }
-    this.setState({signature: signature});
-    
-    let signedDeploy = DeployUtil.setSignature(
-      deploy,
-      decodeBase64(signature),
-      PublicKey.fromEd25519(decodeBase64(key))
-    );
-    this.setState({deployHash: encodeBase16(signedDeploy.hash)});
-    this.setState({deploy: DeployUtil.deployToJson(signedDeploy)});
-    
-    this.setState({deployProcessed: true});
+    let signedDeploy = DeployUtil.deployFromJson(signedDeployJSON);
+    this.setState({
+      signature: signedDeploy.approvals[0].signature,
+      deployHash: encodeBase16(signedDeploy.hash),
+      deploy: signedDeployJSON,
+      deployProcessed: true
+    });
 
     await this.casperService.deploy(signedDeploy);  
   }
@@ -134,7 +150,7 @@ export default class App extends React.Component {
             variant="contained"
             color="primary"
             onClick={() => {this.connectToSigner()}}
-            style={{margin: '1rem', width: '60%'}}
+            style={{margin: '1rem', width: '60%', backgroundColor: '#181d41'}}
             >
             Connect to Signer
           </Button>
@@ -212,7 +228,7 @@ export default class App extends React.Component {
                         Signing Key:
                       </b>
                     </th>
-                  <td>{ this.state.signingKey }</td>
+                  <td>{ this.truncateString(this.state.signingKey, 8, 8) }</td>
                 </tr>
                 <tr>
                   <th style={{
@@ -230,7 +246,7 @@ export default class App extends React.Component {
                     style={{
                       paddingTop: '1rem'
                     }}                  
-                  >{ this.state.signature }</td>
+                  >{ this.truncateString(this.state.signature, 8, 8) }</td>
                 </tr>
                 <tr>
                   <th style={{
@@ -248,7 +264,7 @@ export default class App extends React.Component {
                     style={{
                       paddingTop: '1rem'
                     }}
-                  >{ this.state.deployHash }</td>
+                  >{ this.truncateString(this.state.deployHash, 8, 8) }</td>
                 </tr>
               </tbody>
             </table>            
