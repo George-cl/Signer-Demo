@@ -41,6 +41,9 @@ export default class App extends React.Component {
   }
 
   componentDidMount() {
+    Signer.getVersion().then((ver) => {
+      console.log("VER", ver);
+    });
     document.addEventListener("signerConnected", event => {
       alert(event.detail.name);
     });
@@ -108,6 +111,7 @@ export default class App extends React.Component {
     this.setState({signingKey: key});
     let deploy = await this.createDummyDeploy(key);
     let deployJSON = DeployUtil.deployToJson(deploy);
+    console.log(deployJSON);
     let signedDeployJSON;
     try {
       signedDeployJSON = await window.casperlabsHelper.sign(deployJSON, key);
