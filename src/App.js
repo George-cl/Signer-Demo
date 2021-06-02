@@ -21,7 +21,6 @@ import {
   CasperServiceByJsonRPC,
   encodeBase16,
 } from 'casper-client-sdk';
-
 export default class App extends React.Component {
   
   constructor() {
@@ -110,7 +109,7 @@ export default class App extends React.Component {
     let deployJSON = DeployUtil.deployToJson(deploy);
     let signedDeployJSON;
     try {
-      signedDeployJSON = await window.casperlabsHelper.sign(deployJSON, key);
+      signedDeployJSON = await Signer.sign(deployJSON, key);
     } catch (err) {
       if (err.message === 'User cancelled signing') {
         alert('User Cancelled Signing!');
