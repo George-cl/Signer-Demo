@@ -9,7 +9,10 @@ import {
   IconButton,
   Tooltip,
   Modal,
-  Fab
+  Fab,
+  Select,
+  MenuItem,
+  FormControl
 } from '@material-ui/core';
 import CachedIcon from '@material-ui/icons/Cached';
 import CloseIcon from '@material-ui/icons/Close';
@@ -20,8 +23,12 @@ import {
   PublicKey,
   CasperServiceByJsonRPC,
   encodeBase16,
+  decodeBase16,
+  RuntimeArgs,
+  CLValue
 } from 'casper-client-sdk';
-export default class App extends React.Component {
+
+export default class SignerDemo extends React.Component {
   
   constructor() {
     super();
@@ -34,7 +41,8 @@ export default class App extends React.Component {
       signingKey: "",
       signature: "",
       deployProcessed: false,
-      modalOpen: false
+      modalOpen: false,
+      deployType: "select"
     };
     this.casperService = new CasperServiceByJsonRPC('Signer-Demo-url')
   }
@@ -77,9 +85,9 @@ export default class App extends React.Component {
     return Signer.sendConnectionRequest();
   }
 
-  async createDummyDeploy(accountPublicKey) {
+  async createTransferDeploy(publicKeyHex) {
 
-    let publicKey = PublicKey.fromHex(accountPublicKey);
+    let publicKey = PublicKey.fromHex(publicKeyHex);
 
     let sessionCode = DeployUtil.ExecutableDeployItem.newTransfer(
       200,
@@ -98,14 +106,50 @@ export default class App extends React.Component {
     );
   }
 
+  async createContractByPackageHashDeploy(publicKeyHex) {
+    
+    const publicKey = PublicKey.fromHex(publicKeyHex);
+    const contractHash = decodeBase16('0116e3ba15cfbc4daafb2b43e2c26490015f7d6a1f575e69556251df3f7eb915');
+    const deployParams = new DeployUtil.DeployParams(publicKey, 'casper');
+    const args = RuntimeArgs.fromMap({
+      action: CLValue.string("undelegate"),
+      delegator: CLValue.publicKey(publicKey),
+      validator: CLValue.publicKey(publicKey),
+      amount: CLValue.u512(500)
+    });
+    const session = DeployUtil.ExecutableDeployItem.newStoredContractByHash(
+      contractHash,
+      "undelegate",
+      args
+    )
+
+    return DeployUtil.makeDeploy(
+      deployParams,
+      session,
+      DeployUtil.standardPayment(100000000000)
+    );
+  }
+
   async signDeploy() {
     let key = await Signer.getActivePublicKey()
       .catch(err => {
         alert(err);
         return;
       });
+    if (!key) return;
     this.setState({signingKey: key});
-    let deploy = await this.createDummyDeploy(key);
+    let deploy;
+    switch (this.state.deployType) {
+      case 'transfer' : 
+        deploy = await this.createTransferDeploy(key);
+        break;
+      case 'stored' : 
+        deploy = await this.createContractByPackageHashDeploy(key);
+        break;
+      default: 
+        alert('Please select which type of deploy to sign first');
+        return;
+    }
     let deployJSON = DeployUtil.deployToJson(deploy);
     let signedDeployJSON;
     try {
@@ -134,6 +178,11 @@ export default class App extends React.Component {
     this.setState({modalOpen: true});
   }
 
+  handleDeploySelect = (event => {
+    const dType = event.target.value;
+    this.setState({deployType: dType});
+  });
+
   render() {
     return (
       <div className="App">
@@ -149,19 +198,43 @@ export default class App extends React.Component {
             variant="contained"
             color="primary"
             onClick={() => {this.connectToSigner()}}
-            style={{margin: '1rem', width: '60%', backgroundColor: '#181d41'}}
+            style={{margin: '1rem', width: '60%', backgroundColor: 'indigo'}}
             >
             Connect to Signer
           </Button>
-          <TextField
-            color="secondary"
-            variant="filled"
-            label="Enter a numeric tag for the dummy transfer..."
-            value={this.state.transferTag}
-            onSubmit={() => {this.signDeploy()}}
-            onChange={evt => this.handleChange(evt)}
-            style={{backgroundColor: 'white', borderRadius: '10px', width: '60%'}}
-            />
+          <FormControl fullWidth
+            style={{
+              width: '60%'
+            }}
+          >
+            <Select
+              id='deploy-select'
+              labelId='deploy-type-select-lbl'
+              value={this.state.deployType}
+              disableUnderline
+              onChange={this.handleDeploySelect}
+            >
+              <MenuItem value="select" disabled>Select deploy type...</MenuItem>
+              <MenuItem value={'transfer'}>Transfer</MenuItem>
+              <MenuItem value={'stored'}>Call a Stored Contract</MenuItem>
+              {/* <MenuItem value={'session'}>Session</MenuItem> */}
+            </Select>
+          </FormControl>
+          {this.state.deployType === 'transfer' &&
+            <TextField
+              color="secondary"
+              variant="filled"
+              label="Enter a transferId (any valid u64 will do)..."
+              value={this.state.transferTag}
+              onSubmit={() => {this.signDeploy()}}
+              onChange={evt => this.handleChange(evt)}
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '10px',
+                width: '60%',
+                marginTop: '.8em'
+              }}
+              />}
           <div 
             style={{
               width: '60%'
@@ -176,7 +249,8 @@ export default class App extends React.Component {
                 margin: '1rem',
                 marginLeft: 0,
                 width: '80%',
-                float: 'left'
+                float: 'left',
+                backgroundColor: 'purple'
               }}
               >
               Sign Deploy
@@ -191,7 +265,8 @@ export default class App extends React.Component {
                 color="secondary"
                 onClick={() => window.location.reload()}
                 style={{
-                  margin: '.8rem'
+                  margin: '.8rem',
+                  color: 'springgreen'
                 }}
                 >
                 <CachedIcon />
@@ -227,7 +302,7 @@ export default class App extends React.Component {
                         Signing Key:
                       </b>
                     </th>
-                  <td>{ this.truncateString(this.state.signingKey, 8, 8) }</td>
+                  <td>{ this.state.signingKey ? this.truncateString(this.state.signingKey, 8, 8) : '' }</td>
                 </tr>
                 <tr>
                   <th style={{
@@ -245,7 +320,7 @@ export default class App extends React.Component {
                     style={{
                       paddingTop: '1rem'
                     }}                  
-                  >{ this.truncateString(this.state.signature, 8, 8) }</td>
+                  >{ this.state.signature ? this.truncateString(this.state.signature, 8, 8) : '' }</td>
                 </tr>
                 <tr>
                   <th style={{
@@ -263,7 +338,7 @@ export default class App extends React.Component {
                     style={{
                       paddingTop: '1rem'
                     }}
-                  >{ this.truncateString(this.state.deployHash, 8, 8) }</td>
+                  >{ this.state.deployHash ? this.truncateString(this.state.deployHash, 8, 8) : '' }</td>
                 </tr>
               </tbody>
             </table>            
