@@ -48,8 +48,23 @@ export default class SignerDemo extends React.Component {
   }
 
   componentDidMount() {
-    document.addEventListener("signerConnected", event => {
-      alert(event.detail.name);
+    window.addEventListener("signer:connected", (msg) => {
+      console.log("signer:connected", msg.detail);
+    });
+    window.addEventListener("signer:disconnected", (msg) => {
+      console.log("signer:disconnected", msg.detail);
+    });
+    window.addEventListener("signer:tabUpdated", (msg) => {
+      console.log("signer:tabUpdated", msg.detail);
+    });
+    window.addEventListener("signer:activeKeyChanged", (msg) => {
+      console.log("signer:activeKeyChanged", msg.detail);
+    });
+    window.addEventListener("signer:locked", (msg) => {
+      console.log("signer:locked", msg.detail);
+    });
+    window.addEventListener("signer:unlocked", (msg) => {
+      console.log("signer:unlocked", msg.detail);
     });
   }
 
