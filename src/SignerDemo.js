@@ -12,8 +12,10 @@ import {
   Fab,
   Select,
   MenuItem,
-  FormControl
+  FormControl,
+  Snackbar
 } from '@material-ui/core';
+import Alert from '@material-ui/lab/Alert';
 import CachedIcon from '@material-ui/icons/Cached';
 import CloseIcon from '@material-ui/icons/Close';
 
@@ -38,18 +40,51 @@ export default class SignerDemo extends React.Component {
       contractWasm: null,
       deployHash: "",
       deploy: {},
-      signingKey: "",
+      activeKey: "",
       signature: "",
       deployProcessed: false,
       modalOpen: false,
-      deployType: "select"
+      deployType: "select",
+      showAlert: false,
+      currentNotification: ""
     };
     this.casperService = new CasperServiceByJsonRPC('Signer-Demo-url')
   }
 
-  componentDidMount() {
-    document.addEventListener("signerConnected", event => {
-      alert(event.detail.name);
+  async componentDidMount() {
+    this.setState({signerConnected: await this.checkConnection()})
+    if (this.state.signerConnected) this.setState({activeKey: await this.getActiveKeyFromSigner()})
+    window.addEventListener('signer:connected', msg => {
+      this.setState({
+        signerConnected: true,
+        activeKey: msg.detail.activeKey,
+        currentNotification: 'connected'
+      });
+      this.toggleAlert(true);
+    });
+    window.addEventListener('signer:disconnected', msg => {
+      this.setState({
+        signerConnected: false,
+        activeKey: msg.detail.activeKey,
+        currentNotification: 'disconnected',
+        showAlert: true
+      });
+    });
+    window.addEventListener('signer:tabUpdated', msg => {
+      console.log('signer :: tabUpdated: ', msg.detail);
+    });
+    window.addEventListener('signer:activeKeyChanged', msg => {
+      this.setState({
+        activeKey: msg.detail.activeKey,
+        currentNotification: 'key-change',
+        showAlert: true
+      });
+    });
+    window.addEventListener('signer:locked', msg => {
+      console.log('signer :: locked: ', msg.detail);
+    });
+    window.addEventListener('signer:unlocked', msg => {
+      console.log('signer :: unlocked: ', msg.detail);
     });
   }
 
@@ -60,6 +95,46 @@ export default class SignerDemo extends React.Component {
   handleClose() {
     this.setState({modalOpen: false});
   }
+
+  toggleAlert(show) {
+    this.setState({showAlert: show});
+  }
+
+  createAlert = (reason) => {
+    switch (reason) {
+      case 'connected': {
+        return (
+          <Alert onClose={() => this.toggleAlert(false)} severity="success">
+            Connected to Signer!
+          </Alert>
+        );
+      }
+      case 'disconnected': {
+        return (
+          <Alert onClose={() => this.toggleAlert(false)} severity="info">
+            Disconnected from Signer
+          </Alert>
+        );
+      }
+      case 'cancelled-sign': {
+        return (
+          <Alert onClose={() => this.toggleAlert(false)} severity="error">
+            User cancelled signing!
+          </Alert>
+        );
+      }
+      case 'key-change': {
+        return (
+          <Alert onClose={() => this.toggleAlert(false)} severity="warning">
+            Active key changed
+          </Alert>
+        );   
+      }
+      default: return;
+    }
+  }
+
+
 
   truncateString(
     longString,
@@ -77,11 +152,11 @@ export default class SignerDemo extends React.Component {
     return await Signer.isConnected();
   }
 
+  async getActiveKeyFromSigner() {
+    return await Signer.getActivePublicKey();
+  }
+
   async connectToSigner() {
-    if (await this.checkConnection()) {
-      alert("Already Connected!");
-      return;
-    }
     return Signer.sendConnectionRequest();
   }
 
@@ -137,7 +212,7 @@ export default class SignerDemo extends React.Component {
         return;
       });
     if (!key) return;
-    this.setState({signingKey: key});
+    this.setState({activeKey: key});
     let deploy;
     switch (this.state.deployType) {
       case 'transfer' : 
@@ -155,13 +230,7 @@ export default class SignerDemo extends React.Component {
     try {
       signedDeployJSON = await Signer.sign(deployJSON, key);
     } catch (err) {
-      if (err.message === 'User cancelled signing') {
-        alert('User Cancelled Signing!');
-        return;
-      } else {
-        alert(err);
-        return;
-      }
+      this.setState({currentNotification: 'cancelled-sign', showAlert: true});
     }
     let signedDeploy = DeployUtil.deployFromJson(signedDeployJSON);
     this.setState({
@@ -186,6 +255,15 @@ export default class SignerDemo extends React.Component {
   render() {
     return (
       <div className="App">
+        <Snackbar
+          id='error-bar'
+          open={this.state.showAlert}
+          autoHideDuration={8000}
+          onClose={() => this.toggleAlert(false)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          {this.createAlert(this.state.currentNotification)}
+        </Snackbar>
         <header className="App-header">
           <Typography
             variant="h2"
@@ -193,15 +271,30 @@ export default class SignerDemo extends React.Component {
             Signer Demonstration
           </Typography>
           <img src={logo} className="App-logo" alt="logo" />
-          <Button
-            size="large"
-            variant="contained"
-            color="primary"
-            onClick={() => {this.connectToSigner()}}
-            style={{margin: '1rem', width: '60%', backgroundColor: 'indigo'}}
+          { this.state.signerConnected ?
+            <Typography
+              style={{
+                background: 'indigo',
+                width: '60%',
+                borderRadius: '.6rem',
+                marginBottom: '1rem',
+                padding: '.5rem 0'
+              }}
             >
-            Connect to Signer
-          </Button>
+              Connected with: { this.truncateString(this.state.activeKey, 18, 18) }
+            </Typography>
+          :         
+            <Button
+              size="large"
+              variant="contained"
+              color="primary"
+              disabled={this.state.signerConnected}
+              onClick={() => {this.connectToSigner()}}
+              style={{margin: '1rem', width: '60%', backgroundColor: 'indigo', color: 'white'}}
+              >
+                Connect to Signer
+            </Button>
+          }
           <FormControl fullWidth
             style={{
               width: '60%'
@@ -230,7 +323,7 @@ export default class SignerDemo extends React.Component {
               onChange={evt => this.handleChange(evt)}
               style={{
                 backgroundColor: 'white',
-                borderRadius: '10px',
+                borderRadius: '.6rem',
                 width: '60%',
                 marginTop: '.8em'
               }}
@@ -302,7 +395,7 @@ export default class SignerDemo extends React.Component {
                         Signing Key:
                       </b>
                     </th>
-                  <td>{ this.state.signingKey ? this.truncateString(this.state.signingKey, 8, 8) : '' }</td>
+                  <td>{ this.state.activeKey ? this.truncateString(this.state.activeKey, 8, 8) : '' }</td>
                 </tr>
                 <tr>
                   <th style={{
