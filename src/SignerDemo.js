@@ -1,5 +1,6 @@
 import React from 'react';
-import logo from './logo.png';
+import logo from './img/logo.png';
+// import banner from './img/top-banner-curve-w-dots.svg'
 import './styles/App.css';
 import {
   Button,
@@ -22,13 +23,13 @@ import CloseIcon from '@material-ui/icons/Close';
 import { 
   Signer,
   DeployUtil,
-  PublicKey,
+  CLPublicKey,
   CasperServiceByJsonRPC,
   encodeBase16,
   decodeBase16,
   RuntimeArgs,
   CLValue
-} from 'casper-client-sdk';
+} from 'casper-js-sdk';
 
 export default class SignerDemo extends React.Component {
   
@@ -52,7 +53,8 @@ export default class SignerDemo extends React.Component {
   }
 
   async componentDidMount() {
-    this.setState({signerConnected: await this.checkConnection()})
+    // Without the timeout it doesn't always work properly
+    setTimeout(async () => this.setState({signerConnected: await this.checkConnection()}), 0);
     if (this.state.signerConnected) this.setState({activeKey: await this.getActiveKeyFromSigner()})
     window.addEventListener('signer:connected', msg => {
       this.setState({
@@ -84,7 +86,10 @@ export default class SignerDemo extends React.Component {
       console.log('signer :: locked: ', msg.detail);
     });
     window.addEventListener('signer:unlocked', msg => {
-      console.log('signer :: unlocked: ', msg.detail);
+      this.setState({
+        signerConnected: msg.detail.isConnected,
+        activeKey: msg.detail.activeKey
+      })
     });
   }
 
@@ -134,8 +139,6 @@ export default class SignerDemo extends React.Component {
     }
   }
 
-
-
   truncateString(
     longString,
     startChunk,
@@ -162,7 +165,7 @@ export default class SignerDemo extends React.Component {
 
   async createTransferDeploy(publicKeyHex) {
 
-    let publicKey = PublicKey.fromHex(publicKeyHex);
+    let publicKey = CLPublicKey.fromHex(publicKeyHex);
 
     let sessionCode = DeployUtil.ExecutableDeployItem.newTransfer(
       200,
@@ -183,7 +186,7 @@ export default class SignerDemo extends React.Component {
 
   async createContractByPackageHashDeploy(publicKeyHex) {
     
-    const publicKey = PublicKey.fromHex(publicKeyHex);
+    const publicKey = CLPublicKey.fromHex(publicKeyHex);
     const contractHash = decodeBase16('0116e3ba15cfbc4daafb2b43e2c26490015f7d6a1f575e69556251df3f7eb915');
     const deployParams = new DeployUtil.DeployParams(publicKey, 'casper');
     const args = RuntimeArgs.fromMap({
@@ -226,11 +229,13 @@ export default class SignerDemo extends React.Component {
         return;
     }
     let deployJSON = DeployUtil.deployToJson(deploy);
+    console.log(deployJSON);
     let signedDeployJSON;
     try {
-      signedDeployJSON = await Signer.sign(deployJSON, key);
+      signedDeployJSON = await Signer.sign(deployJSON, key, key);
     } catch (err) {
       this.setState({currentNotification: 'cancelled-sign', showAlert: true});
+      return;
     }
     let signedDeploy = DeployUtil.deployFromJson(signedDeployJSON);
     this.setState({
@@ -281,7 +286,7 @@ export default class SignerDemo extends React.Component {
                 padding: '.5rem 0'
               }}
             >
-              Connected with: { this.truncateString(this.state.activeKey, 18, 18) }
+              Connected with: { this.truncateString(this.state.activeKey, 10, 10) }
             </Typography>
           :         
             <Button
