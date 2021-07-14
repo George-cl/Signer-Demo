@@ -142,7 +142,7 @@ export default class SignerDemo extends React.Component {
       case 'User Cancelled Signing': {
         return (
           <Alert onClose={() => this.toggleAlert(false)} severity="error">
-            >User cancelled signing!
+            User cancelled signing!
           </Alert>
         );
       }
