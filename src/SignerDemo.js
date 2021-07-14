@@ -28,7 +28,9 @@ import {
   encodeBase16,
   decodeBase16,
   RuntimeArgs,
-  CLValue
+  CLString,
+  CLU512,
+  CLPublicKeyTag
 } from 'casper-js-sdk';
 
 export default class SignerDemo extends React.Component {
@@ -37,6 +39,7 @@ export default class SignerDemo extends React.Component {
     super();
     this.state = {
       signerConnected: false,
+      signerLocked: true,
       transferTag: "",
       contractWasm: null,
       deployHash: "",
@@ -54,18 +57,20 @@ export default class SignerDemo extends React.Component {
 
   async componentDidMount() {
     // Without the timeout it doesn't always work properly
-    setTimeout(async () => this.setState({signerConnected: await this.checkConnection()}), 0);
+    setTimeout(async () => this.setState({signerConnected: await this.checkConnection()}), 0.05);
     if (this.state.signerConnected) this.setState({activeKey: await this.getActiveKeyFromSigner()})
     window.addEventListener('signer:connected', msg => {
       this.setState({
+        signerLocked: !msg.detail.isUnlocked,
         signerConnected: true,
         activeKey: msg.detail.activeKey,
-        currentNotification: 'connected'
+        currentNotification: 'connected',
+        showAlert: true
       });
-      this.toggleAlert(true);
     });
     window.addEventListener('signer:disconnected', msg => {
       this.setState({
+        signerLocked: !msg.detail.isUnlocked,
         signerConnected: false,
         activeKey: msg.detail.activeKey,
         currentNotification: 'disconnected',
@@ -83,10 +88,16 @@ export default class SignerDemo extends React.Component {
       });
     });
     window.addEventListener('signer:locked', msg => {
-      console.log('signer :: locked: ', msg.detail);
+      this.setState({
+        signerLocked: !msg.detail.isUnlocked,
+        currentNotification: 'locked',
+        showAlert: true,
+        activeKey: msg.detail.activeKey
+      })
     });
     window.addEventListener('signer:unlocked', msg => {
       this.setState({
+        signerLocked: !msg.detail.isUnlocked,
         signerConnected: msg.detail.isConnected,
         activeKey: msg.detail.activeKey
       })
@@ -121,10 +132,17 @@ export default class SignerDemo extends React.Component {
           </Alert>
         );
       }
-      case 'cancelled-sign': {
+      case 'locked': {
+        return (
+          <Alert onClose={() => this.toggleAlert(false)} severity="info">
+            Signer has locked
+          </Alert>
+        );
+      }
+      case 'User Cancelled Signing': {
         return (
           <Alert onClose={() => this.toggleAlert(false)} severity="error">
-            User cancelled signing!
+            >User cancelled signing!
           </Alert>
         );
       }
@@ -135,7 +153,13 @@ export default class SignerDemo extends React.Component {
           </Alert>
         );   
       }
-      default: return;
+      default: {
+        return (
+          <Alert onClose={() => this.toggleAlert(false)} severity='error'>
+            {reason}
+          </Alert>
+        )
+      }
     }
   }
 
@@ -144,6 +168,7 @@ export default class SignerDemo extends React.Component {
     startChunk,
     endChunk
   ){
+    if (!longString) return;
     return (
       longString.substring(0, startChunk) +
       '...' +
@@ -190,10 +215,10 @@ export default class SignerDemo extends React.Component {
     const contractHash = decodeBase16('0116e3ba15cfbc4daafb2b43e2c26490015f7d6a1f575e69556251df3f7eb915');
     const deployParams = new DeployUtil.DeployParams(publicKey, 'casper');
     const args = RuntimeArgs.fromMap({
-      action: CLValue.string("undelegate"),
-      delegator: CLValue.publicKey(publicKey),
-      validator: CLValue.publicKey(publicKey),
-      amount: CLValue.u512(500)
+      action: new CLString("undelegate"),
+      delegator: new CLPublicKey(publicKey.value(), publicKey.isEd25519() ? CLPublicKeyTag.ED25519 : publicKey.isSecp256K1() ? CLPublicKeyTag.SECP256K1 : undefined),
+      validator: new CLPublicKey(publicKey.value(), publicKey.isEd25519() ? CLPublicKeyTag.ED25519 : publicKey.isSecp256K1() ? CLPublicKeyTag.SECP256K1 : undefined),
+      amount: new CLU512(500)
     });
     const session = DeployUtil.ExecutableDeployItem.newStoredContractByHash(
       contractHash,
@@ -209,35 +234,40 @@ export default class SignerDemo extends React.Component {
   }
 
   async signDeploy() {
-    let key = await Signer.getActivePublicKey()
-      .catch(err => {
-        alert(err);
-        return;
-      });
-    if (!key) return;
+    let key;
+    try {
+      key = await Signer.getActivePublicKey();
+    } catch (err) {
+      this.setState({currentNotification: err.message, showAlert: true});
+      return;
+    }
     this.setState({activeKey: key});
-    let deploy;
+    let deploy, deployJSON;
     switch (this.state.deployType) {
       case 'transfer' : 
         deploy = await this.createTransferDeploy(key);
+        deployJSON = DeployUtil.deployToJson(deploy);
         break;
       case 'stored' : 
         deploy = await this.createContractByPackageHashDeploy(key);
+        deployJSON = DeployUtil.deployToJson(deploy);
+        break;
+      case 'bad' :
+        // emulates missing deploy arg
+        deployJSON = undefined;
         break;
       default: 
         alert('Please select which type of deploy to sign first');
         return;
     }
-    let deployJSON = DeployUtil.deployToJson(deploy);
-    console.log(deployJSON);
     let signedDeployJSON;
     try {
       signedDeployJSON = await Signer.sign(deployJSON, key, key);
     } catch (err) {
-      this.setState({currentNotification: 'cancelled-sign', showAlert: true});
+      this.setState({currentNotification: err.message, showAlert: true});
       return;
     }
-    let signedDeploy = DeployUtil.deployFromJson(signedDeployJSON);
+    let signedDeploy = DeployUtil.deployFromJson(signedDeployJSON).unwrap();
     this.setState({
       signature: signedDeploy.approvals[0].signature,
       deployHash: encodeBase16(signedDeploy.hash),
@@ -276,7 +306,19 @@ export default class SignerDemo extends React.Component {
             Signer Demonstration
           </Typography>
           <img src={logo} className="App-logo" alt="logo" />
-          { this.state.signerConnected ?
+          { this.state.signerConnected ? this.state.signerLocked ?
+            <Typography
+              style={{
+                background: 'indigo',
+                width: '60%',
+                borderRadius: '.6rem',
+                marginBottom: '1rem',
+                padding: '.5rem 0'
+              }}
+            >
+              Unlock the Signer to get Started
+            </Typography>
+            :
             <Typography
               style={{
                 background: 'indigo',
@@ -315,6 +357,7 @@ export default class SignerDemo extends React.Component {
               <MenuItem value="select" disabled>Select deploy type...</MenuItem>
               <MenuItem value={'transfer'}>Transfer</MenuItem>
               <MenuItem value={'stored'}>Call a Stored Contract</MenuItem>
+              <MenuItem value={'bad'}>Bad Deploy</MenuItem>
               {/* <MenuItem value={'session'}>Session</MenuItem> */}
             </Select>
           </FormControl>
