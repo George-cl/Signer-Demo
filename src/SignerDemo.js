@@ -50,7 +50,7 @@ export default class SignerDemo extends React.Component {
       modalOpen: false,
       deployType: "select",
       showAlert: false,
-      currentNotification: ""
+      currentNotification: {}
     };
     this.casperService = new CasperServiceByJsonRPC('Signer-Demo-url')
   }
@@ -64,7 +64,7 @@ export default class SignerDemo extends React.Component {
         signerLocked: !msg.detail.isUnlocked,
         signerConnected: true,
         activeKey: msg.detail.activeKey,
-        currentNotification: 'connected',
+        currentNotification: {text: 'Connected to Signer!', severity: 'success'},
         showAlert: true
       });
     });
@@ -73,7 +73,7 @@ export default class SignerDemo extends React.Component {
         signerLocked: !msg.detail.isUnlocked,
         signerConnected: false,
         activeKey: msg.detail.activeKey,
-        currentNotification: 'disconnected',
+        currentNotification: {text: 'Disconnected from Signer', severity: 'info'},
         showAlert: true
       });
     });
@@ -83,14 +83,14 @@ export default class SignerDemo extends React.Component {
     window.addEventListener('signer:activeKeyChanged', msg => {
       this.setState({
         activeKey: msg.detail.activeKey,
-        currentNotification: 'key-change',
+        currentNotification: {text: 'Active key changed', severity: 'warning'},
         showAlert: true
       });
     });
     window.addEventListener('signer:locked', msg => {
       this.setState({
         signerLocked: !msg.detail.isUnlocked,
-        currentNotification: 'locked',
+        currentNotification: {text: 'Signer has locked', severity: 'info'},
         showAlert: true,
         activeKey: msg.detail.activeKey
       })
@@ -116,51 +116,12 @@ export default class SignerDemo extends React.Component {
     this.setState({showAlert: show});
   }
 
-  createAlert = (reason) => {
-    switch (reason) {
-      case 'connected': {
-        return (
-          <Alert onClose={() => this.toggleAlert(false)} severity="success">
-            Connected to Signer!
-          </Alert>
-        );
-      }
-      case 'disconnected': {
-        return (
-          <Alert onClose={() => this.toggleAlert(false)} severity="info">
-            Disconnected from Signer
-          </Alert>
-        );
-      }
-      case 'locked': {
-        return (
-          <Alert onClose={() => this.toggleAlert(false)} severity="info">
-            Signer has locked
-          </Alert>
-        );
-      }
-      case 'User Cancelled Signing': {
-        return (
-          <Alert onClose={() => this.toggleAlert(false)} severity="error">
-            User cancelled signing!
-          </Alert>
-        );
-      }
-      case 'key-change': {
-        return (
-          <Alert onClose={() => this.toggleAlert(false)} severity="warning">
-            Active key changed
-          </Alert>
-        );   
-      }
-      default: {
-        return (
-          <Alert onClose={() => this.toggleAlert(false)} severity='error'>
-            {reason}
-          </Alert>
-        )
-      }
-    }
+  createAlert = (text, severity = 'error') => {
+    return (
+      <Alert onClose={() => this.toggleAlert(false)} severity={severity}>
+        {text}{severity === 'error' ? '!' : ''}
+      </Alert>
+    );
   }
 
   truncateString(
@@ -238,7 +199,7 @@ export default class SignerDemo extends React.Component {
     try {
       key = await Signer.getActivePublicKey();
     } catch (err) {
-      this.setState({currentNotification: err.message, showAlert: true});
+      this.setState({currentNotification: {text: err.message, severity: 'error'}, showAlert: true});
       return;
     }
     this.setState({activeKey: key});
@@ -257,14 +218,14 @@ export default class SignerDemo extends React.Component {
         deployJSON = undefined;
         break;
       default: 
-        alert('Please select which type of deploy to sign first');
+        this.setState({currentNotification: {text: 'Please select deploy type', severity: 'warning'}, showAlert: true});
         return;
     }
     let signedDeployJSON;
     try {
       signedDeployJSON = await Signer.sign(deployJSON, key, key);
     } catch (err) {
-      this.setState({currentNotification: err.message, showAlert: true});
+      this.setState({currentNotification: {text: err.message, severity: 'error'}, showAlert: true});
       return;
     }
     let signedDeploy = DeployUtil.deployFromJson(signedDeployJSON).unwrap();
@@ -272,7 +233,9 @@ export default class SignerDemo extends React.Component {
       signature: signedDeploy.approvals[0].signature,
       deployHash: encodeBase16(signedDeploy.hash),
       deploy: signedDeployJSON,
-      deployProcessed: true
+      deployProcessed: true,
+      currentNotification: {text: 'Deploy Signed', severity: 'success'},
+      showAlert: true
     });
 
     await this.casperService.deploy(signedDeploy);  
@@ -293,11 +256,11 @@ export default class SignerDemo extends React.Component {
         <Snackbar
           id='error-bar'
           open={this.state.showAlert}
-          autoHideDuration={8000}
+          autoHideDuration={6000}
           onClose={() => this.toggleAlert(false)}
           anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         >
-          {this.createAlert(this.state.currentNotification)}
+          {this.createAlert(this.state.currentNotification.text, this.state.currentNotification.severity)}
         </Snackbar>
         <header className="App-header">
           <Typography
