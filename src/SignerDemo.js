@@ -1,4 +1,5 @@
 import React from 'react';
+
 import logo from './img/logo.png';
 // import banner from './img/top-banner-curve-w-dots.svg'
 import './styles/App.css';
@@ -30,7 +31,12 @@ import {
   RuntimeArgs,
   CLString,
   CLU512,
-  CLPublicKeyTag
+  CLPublicKeyTag,
+  CLU32,
+  CLByteArray,
+  CLBool,
+  CLList,
+  CLTuple3
 } from 'casper-js-sdk';
 
 export default class SignerDemo extends React.Component {
@@ -57,7 +63,15 @@ export default class SignerDemo extends React.Component {
 
   async componentDidMount() {
     // Without the timeout it doesn't always work properly
-    setTimeout(async () => this.setState({signerConnected: await this.checkConnection()}), 0.05);
+    setTimeout(async () => {
+      try {
+        const connected = await this.checkConnection();
+        this.setState({ signerConnected: connected })
+      } catch (err) {
+        console.log(err)
+        this.setState({currentNotification: {text: err.message}, showAlert: true});
+      }
+    }, 0.05);
     if (this.state.signerConnected) this.setState({activeKey: await this.getActiveKeyFromSigner()})
     window.addEventListener('signer:connected', msg => {
       this.setState({
@@ -154,7 +168,7 @@ export default class SignerDemo extends React.Component {
     let publicKey = CLPublicKey.fromHex(publicKeyHex);
 
     let sessionCode = DeployUtil.ExecutableDeployItem.newTransfer(
-      200,
+      2456300000,
       publicKey,
       null,
       this.state.transferTag
@@ -166,20 +180,20 @@ export default class SignerDemo extends React.Component {
         "Signer-Demo-Chain"
       ),
       sessionCode,
-      DeployUtil.standardPayment(100000000000)
+      DeployUtil.standardPayment(10000000)
     );
   }
 
-  async createContractByPackageHashDeploy(publicKeyHex) {
+  async createStakingDeploy(publicKeyHex, stakingAction) {
     
     const publicKey = CLPublicKey.fromHex(publicKeyHex);
     const contractHash = decodeBase16('0116e3ba15cfbc4daafb2b43e2c26490015f7d6a1f575e69556251df3f7eb915');
     const deployParams = new DeployUtil.DeployParams(publicKey, 'casper');
     const args = RuntimeArgs.fromMap({
-      action: new CLString("undelegate"),
+      action: new CLString(stakingAction),
       delegator: new CLPublicKey(publicKey.value(), publicKey.isEd25519() ? CLPublicKeyTag.ED25519 : publicKey.isSecp256K1() ? CLPublicKeyTag.SECP256K1 : undefined),
       validator: new CLPublicKey(publicKey.value(), publicKey.isEd25519() ? CLPublicKeyTag.ED25519 : publicKey.isSecp256K1() ? CLPublicKeyTag.SECP256K1 : undefined),
-      amount: new CLU512(500)
+      amount: new CLU512(5456400000)
     });
     const session = DeployUtil.ExecutableDeployItem.newStoredContractByHash(
       contractHash,
@@ -190,8 +204,58 @@ export default class SignerDemo extends React.Component {
     return DeployUtil.makeDeploy(
       deployParams,
       session,
-      DeployUtil.standardPayment(100000000000)
+      DeployUtil.standardPayment(1000000)
     );
+  }
+
+  async createDeployWithArbitraryArgs(publicKeyHex, complexity) {
+
+    const publicKey = CLPublicKey.fromHex(publicKeyHex);
+    const contractHash = decodeBase16('0116e3ba15cfbc4daafb2b43e2c26490015f7d6a1f575e69556251df3f7eb915');
+    const deployParams = new DeployUtil.DeployParams(publicKey, 'casper');
+    let args = [];
+    switch (complexity) {
+      case 'simple' : {
+        args =  RuntimeArgs.fromMap({
+          String: new CLString('Juice'),
+          PublicKey: new CLPublicKey(publicKey.value(), publicKey.isEd25519() ? CLPublicKeyTag.ED25519 : publicKey.isSecp256K1() ? CLPublicKeyTag.SECP256K1 : undefined),
+          U32: new CLU32(1250),
+          ByteArray: new CLByteArray(publicKey.toAccountHash()),
+          Boolean: new CLBool(false)
+        });
+        break;
+      }
+      case 'complex' : {
+        args =  RuntimeArgs.fromMap({
+          List: new CLList([
+            new CLString('ItemA'),
+            new CLString('ItemB'),
+            new CLString('ItemC')
+          ]),
+          Tuple3: new CLTuple3([
+            new CLByteArray(publicKey.toAccountHash()),
+            new CLBool(true),
+            new CLU32(300)
+          ])
+        });
+        break;
+      }
+      default : throw new Error('Invalid complexity provided');
+    }
+
+    const session = DeployUtil.ExecutableDeployItem.newStoredContractByHash(
+      contractHash,
+      "test-args",
+      args
+    )
+
+    return DeployUtil.makeDeploy(
+      deployParams,
+      session,
+      DeployUtil.standardPayment(1000000)
+    );
+
+
   }
 
   async signDeploy() {
@@ -209,18 +273,31 @@ export default class SignerDemo extends React.Component {
         deploy = await this.createTransferDeploy(key);
         deployJSON = DeployUtil.deployToJson(deploy);
         break;
-      case 'stored' : 
-        deploy = await this.createContractByPackageHashDeploy(key);
+      case 'delegate' : 
+        deploy = await this.createStakingDeploy(key, 'delegate');
         deployJSON = DeployUtil.deployToJson(deploy);
         break;
-      case 'bad' :
-        // emulates missing deploy arg
+      case 'undelegate' :
+        deploy = await this.createStakingDeploy(key, 'undelegate');
+        deployJSON = DeployUtil.deployToJson(deploy);
+        break;
+      case 'arbExampleSimple' :
+        deploy = await this.createDeployWithArbitraryArgs(key, 'simple');
+        deployJSON = DeployUtil.deployToJson(deploy);
+        break;
+      case 'arbExampleComplex' :
+        deploy = await this.createDeployWithArbitraryArgs(key, 'complex');
+        deployJSON = DeployUtil.deployToJson(deploy);
+        break;  
+      case 'undefined' :
+        // emulates sending sign request with no deploy parameter
         deployJSON = undefined;
         break;
       default: 
         this.setState({currentNotification: {text: 'Please select deploy type', severity: 'warning'}, showAlert: true});
         return;
     }
+    console.log(deployJSON);
     let signedDeployJSON;
     try {
       signedDeployJSON = await Signer.sign(deployJSON, key, key);
@@ -238,7 +315,7 @@ export default class SignerDemo extends React.Component {
       showAlert: true
     });
 
-    await this.casperService.deploy(signedDeploy);  
+    // await this.casperService.deploy(signedDeploy);  
   }
 
   showDeploy() {
@@ -319,8 +396,11 @@ export default class SignerDemo extends React.Component {
             >
               <MenuItem value="select" disabled>Select deploy type...</MenuItem>
               <MenuItem value={'transfer'}>Transfer</MenuItem>
-              <MenuItem value={'stored'}>Call a Stored Contract</MenuItem>
-              <MenuItem value={'bad'}>Bad Deploy</MenuItem>
+              <MenuItem value={'delegate'}>Delegate</MenuItem>
+              <MenuItem value={'undelegate'}>Undelegate</MenuItem>
+              <MenuItem value={'arbExampleSimple'}>Arbitrary Example (Simple)</MenuItem>
+              <MenuItem value={'arbExampleComplex'}>Arbitrary Example (Complex)</MenuItem>
+              <MenuItem value={'undefined'}>Undefined Deploy</MenuItem>
               {/* <MenuItem value={'session'}>Session</MenuItem> */}
             </Select>
           </FormControl>
