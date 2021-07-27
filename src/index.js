@@ -1,11 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import './styles/index.css';
-import App from './App';
+import SignerDemo from './SignerDemo';
 
 ReactDOM.render(
   <React.StrictMode>
-    <App />
+    <SignerDemo />
   </React.StrictMode>,
   document.getElementById('root')
 );
