@@ -36,7 +36,8 @@ import {
   CLByteArray,
   CLBool,
   CLList,
-  CLTuple3
+  CLTuple3,
+  verifyMessageSignature,
 } from 'casper-js-sdk';
 
 export default class SignerDemo extends React.Component {
@@ -47,6 +48,7 @@ export default class SignerDemo extends React.Component {
       signerConnected: false,
       signerLocked: true,
       transferTag: "",
+      message: "",
       contractWasm: null,
       deployHash: "",
       deploy: {},
@@ -118,8 +120,12 @@ export default class SignerDemo extends React.Component {
     });
   }
 
-  handleChange(event) {
+  handleTransferIdChange(event) {
     this.setState({transferTag: event.target.value});
+  }
+  
+  handleMessageChange(event) {
+    this.setState({message: event.target.value});
   }
 
   handleClose() {
@@ -297,7 +303,6 @@ export default class SignerDemo extends React.Component {
         this.setState({currentNotification: {text: 'Please select deploy type', severity: 'warning'}, showAlert: true});
         return;
     }
-    console.log(deployJSON);
     let signedDeployJSON;
     try {
       signedDeployJSON = await Signer.sign(deployJSON, key, key);
@@ -314,8 +319,29 @@ export default class SignerDemo extends React.Component {
       currentNotification: {text: 'Deploy Signed', severity: 'success'},
       showAlert: true
     });
-
+    
     // await this.casperService.deploy(signedDeploy);  
+  }
+
+  signMessage = async () => {
+    if (!this.state.message) {
+      this.setState({currentNotification: {text: 'Please enter a message', severity: 'error'}});
+      return;
+    }
+    const publicKeyHex = await this.getActiveKeyFromSigner();
+    const signature = await Signer.signMessage(this.state.message, publicKeyHex);
+    if (verifyMessageSignature(CLPublicKey.fromHex(publicKeyHex), this.state.message, decodeBase16(signature))) {
+      this.setState({
+        signature: signature,
+        currentNotification: {text: 'Signature Verified', severity: 'success'},
+        showAlert: true
+      });
+    } else {
+      this.setState({
+        currentNotification: {text: 'Signature Verification Failed', severity: 'error'},
+        showAlert: true
+      });
+    }
   }
 
   showDeploy() {
@@ -401,17 +427,18 @@ export default class SignerDemo extends React.Component {
               <MenuItem value={'arbExampleSimple'}>Arbitrary Example (Simple)</MenuItem>
               <MenuItem value={'arbExampleComplex'}>Arbitrary Example (Complex)</MenuItem>
               <MenuItem value={'undefined'}>Undefined Deploy</MenuItem>
+              <MenuItem value={'message'}>Sign a message</MenuItem>
               {/* <MenuItem value={'session'}>Session</MenuItem> */}
             </Select>
           </FormControl>
-          {this.state.deployType === 'transfer' &&
+          {(this.state.deployType === 'transfer' || this.state.deployType === 'message') &&
             <TextField
               color="secondary"
               variant="filled"
-              label="Enter a transferId (any valid u64 will do)..."
-              value={this.state.transferTag}
-              onSubmit={() => {this.signDeploy()}}
-              onChange={evt => this.handleChange(evt)}
+              label={this.state.deployType === 'transfer' ? "Enter a transferId (any valid u64 will do)..." : "Enter a message"}
+              value={this.state.deployType === 'transfer' ? this.state.transferTag : this.state.message}
+              onSubmit={() => this.state.deployType === 'transfer' ? this.signDeploy() : this.signMessage()}
+              onChange={evt => this.state.deployType === 'transfer' ? this.handleTransferIdChange(evt) : this.handleMessageChange(evt)}
               style={{
                 backgroundColor: 'white',
                 borderRadius: '.6rem',
@@ -428,7 +455,7 @@ export default class SignerDemo extends React.Component {
               size="large"
               variant="contained"
               color="secondary"
-              onClick={() => {this.signDeploy()}}
+              onClick={() => {this.state.deployType === 'message' ? this.signMessage() : this.signDeploy()}}
               style={{
                 margin: '1rem',
                 marginLeft: 0,
