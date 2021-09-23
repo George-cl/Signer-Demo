@@ -73,7 +73,7 @@ export default class SignerDemo extends React.Component {
         console.log(err)
         this.setState({currentNotification: {text: err.message}, showAlert: true});
       }
-    }, 0.05);
+    }, 100);
     if (this.state.signerConnected) this.setState({activeKey: await this.getActiveKeyFromSigner()})
     window.addEventListener('signer:connected', msg => {
       this.setState({
@@ -94,7 +94,11 @@ export default class SignerDemo extends React.Component {
       });
     });
     window.addEventListener('signer:tabUpdated', msg => {
-      console.log('signer :: tabUpdated: ', msg.detail);
+      this.setState({
+        signerLocked: !msg.detail.isUnlocked,
+        signerConnected: msg.detail.isConnected,
+        activeKey: msg.detail.activeKey
+      })
     });
     window.addEventListener('signer:activeKeyChanged', msg => {
       this.setState({
@@ -118,6 +122,14 @@ export default class SignerDemo extends React.Component {
         activeKey: msg.detail.activeKey
       })
     });
+    window.addEventListener('signer:initialState', msg => {
+      console.log("Initial State: ", msg.detail);
+      this.setState({
+        signerLocked: !msg.detail.isUnlocked,
+        signerConnected: msg.detail.isConnected,
+        activeKey: msg.detail.activeKey
+      });
+    })
   }
 
   handleTransferIdChange(event) {
