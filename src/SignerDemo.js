@@ -21,7 +21,7 @@ import Alert from '@material-ui/lab/Alert';
 import CachedIcon from '@material-ui/icons/Cached';
 import CloseIcon from '@material-ui/icons/Close';
 
-import { 
+import {
   Signer,
   DeployUtil,
   CLPublicKey,
@@ -41,7 +41,7 @@ import {
 } from 'casper-js-sdk';
 
 export default class SignerDemo extends React.Component {
-  
+
   constructor() {
     super();
     this.state = {
@@ -71,16 +71,16 @@ export default class SignerDemo extends React.Component {
         this.setState({ signerConnected: connected })
       } catch (err) {
         console.log(err)
-        this.setState({currentNotification: {text: err.message}, showAlert: true});
+        this.setState({ currentNotification: { text: err.message }, showAlert: true });
       }
     }, 100);
-    if (this.state.signerConnected) this.setState({activeKey: await this.getActiveKeyFromSigner()})
+    if (this.state.signerConnected) this.setState({ activeKey: await this.getActiveKeyFromSigner() })
     window.addEventListener('signer:connected', msg => {
       this.setState({
         signerLocked: !msg.detail.isUnlocked,
         signerConnected: true,
         activeKey: msg.detail.activeKey,
-        currentNotification: {text: 'Connected to Signer!', severity: 'success'},
+        currentNotification: { text: 'Connected to Signer!', severity: 'success' },
         showAlert: true
       });
     });
@@ -89,7 +89,7 @@ export default class SignerDemo extends React.Component {
         signerLocked: !msg.detail.isUnlocked,
         signerConnected: false,
         activeKey: msg.detail.activeKey,
-        currentNotification: {text: 'Disconnected from Signer', severity: 'info'},
+        currentNotification: { text: 'Disconnected from Signer', severity: 'info' },
         showAlert: true
       });
     });
@@ -103,14 +103,14 @@ export default class SignerDemo extends React.Component {
     window.addEventListener('signer:activeKeyChanged', msg => {
       this.setState({
         activeKey: msg.detail.activeKey,
-        currentNotification: {text: 'Active key changed', severity: 'warning'},
+        currentNotification: { text: 'Active key changed', severity: 'warning' },
         showAlert: true
       });
     });
     window.addEventListener('signer:locked', msg => {
       this.setState({
         signerLocked: !msg.detail.isUnlocked,
-        currentNotification: {text: 'Signer has locked', severity: 'info'},
+        currentNotification: { text: 'Signer has locked', severity: 'info' },
         showAlert: true,
         activeKey: msg.detail.activeKey
       })
@@ -133,19 +133,19 @@ export default class SignerDemo extends React.Component {
   }
 
   handleTransferIdChange(event) {
-    this.setState({transferTag: event.target.value});
+    this.setState({ transferTag: event.target.value });
   }
-  
+
   handleMessageChange(event) {
-    this.setState({message: event.target.value});
+    this.setState({ message: event.target.value });
   }
 
   handleClose() {
-    this.setState({modalOpen: false});
+    this.setState({ modalOpen: false });
   }
 
   toggleAlert(show) {
-    this.setState({showAlert: show});
+    this.setState({ showAlert: show });
   }
 
   createAlert = (text, severity = 'error') => {
@@ -160,7 +160,7 @@ export default class SignerDemo extends React.Component {
     longString,
     startChunk,
     endChunk
-  ){
+  ) {
     if (!longString) return;
     return (
       longString.substring(0, startChunk) +
@@ -203,7 +203,7 @@ export default class SignerDemo extends React.Component {
   }
 
   async createStakingDeploy(publicKeyHex, stakingAction) {
-    
+
     const publicKey = CLPublicKey.fromHex(publicKeyHex);
     const contractHash = decodeBase16('0116e3ba15cfbc4daafb2b43e2c26490015f7d6a1f575e69556251df3f7eb915');
     const deployParams = new DeployUtil.DeployParams(publicKey, 'casper');
@@ -233,8 +233,8 @@ export default class SignerDemo extends React.Component {
     const deployParams = new DeployUtil.DeployParams(publicKey, 'casper');
     let args = [];
     switch (complexity) {
-      case 'simple' : {
-        args =  RuntimeArgs.fromMap({
+      case 'simple': {
+        args = RuntimeArgs.fromMap({
           String: new CLString('Juice'),
           PublicKey: new CLPublicKey(publicKey.value(), publicKey.isEd25519() ? CLPublicKeyTag.ED25519 : publicKey.isSecp256K1() ? CLPublicKeyTag.SECP256K1 : undefined),
           U32: new CLU32(1250),
@@ -243,8 +243,8 @@ export default class SignerDemo extends React.Component {
         });
         break;
       }
-      case 'complex' : {
-        args =  RuntimeArgs.fromMap({
+      case 'complex': {
+        args = RuntimeArgs.fromMap({
           List: new CLList([
             new CLString('ItemA'),
             new CLString('ItemB'),
@@ -258,7 +258,7 @@ export default class SignerDemo extends React.Component {
         });
         break;
       }
-      default : throw new Error('Invalid complexity provided');
+      default: throw new Error('Invalid complexity provided');
     }
 
     const session = DeployUtil.ExecutableDeployItem.newStoredContractByHash(
@@ -281,45 +281,46 @@ export default class SignerDemo extends React.Component {
     try {
       key = await Signer.getActivePublicKey();
     } catch (err) {
-      this.setState({currentNotification: {text: err.message, severity: 'error'}, showAlert: true});
+      this.setState({ currentNotification: { text: err.message, severity: 'error' }, showAlert: true });
       return;
     }
-    this.setState({activeKey: key});
+    this.setState({ activeKey: key });
     let deploy, deployJSON;
     switch (this.state.deployType) {
-      case 'transfer' : 
+      case 'transfer':
         deploy = await this.createTransferDeploy(key);
         deployJSON = DeployUtil.deployToJson(deploy);
         break;
-      case 'delegate' : 
+      case 'delegate':
         deploy = await this.createStakingDeploy(key, 'delegate');
         deployJSON = DeployUtil.deployToJson(deploy);
         break;
-      case 'undelegate' :
+      case 'undelegate':
         deploy = await this.createStakingDeploy(key, 'undelegate');
         deployJSON = DeployUtil.deployToJson(deploy);
         break;
-      case 'arbExampleSimple' :
+      case 'arbExampleSimple':
         deploy = await this.createDeployWithArbitraryArgs(key, 'simple');
         deployJSON = DeployUtil.deployToJson(deploy);
         break;
-      case 'arbExampleComplex' :
+      case 'arbExampleComplex':
         deploy = await this.createDeployWithArbitraryArgs(key, 'complex');
         deployJSON = DeployUtil.deployToJson(deploy);
-        break;  
-      case 'undefined' :
+        break;
+      case 'undefined':
         // emulates sending sign request with no deploy parameter
         deployJSON = undefined;
         break;
-      default: 
-        this.setState({currentNotification: {text: 'Please select deploy type', severity: 'warning'}, showAlert: true});
+      default:
+        this.setState({ currentNotification: { text: 'Please select deploy type', severity: 'warning' }, showAlert: true });
         return;
     }
     let signedDeployJSON;
     try {
+      console.log(key);
       signedDeployJSON = await Signer.sign(deployJSON, key, key);
     } catch (err) {
-      this.setState({currentNotification: {text: err.message, severity: 'error'}, showAlert: true});
+      this.setState({ currentNotification: { text: err.message, severity: 'error' }, showAlert: true });
       return;
     }
     let signedDeploy = DeployUtil.deployFromJson(signedDeployJSON).unwrap();
@@ -328,16 +329,16 @@ export default class SignerDemo extends React.Component {
       deployHash: encodeBase16(signedDeploy.hash),
       deploy: signedDeployJSON,
       deployProcessed: true,
-      currentNotification: {text: 'Deploy Signed', severity: 'success'},
+      currentNotification: { text: 'Deploy Signed', severity: 'success' },
       showAlert: true
     });
-    
+
     // await this.casperService.deploy(signedDeploy);  
   }
 
   signMessage = async () => {
     if (!this.state.message) {
-      this.setState({currentNotification: {text: 'Please enter a message', severity: 'error'}});
+      this.setState({ currentNotification: { text: 'Please enter a message', severity: 'error' } });
       return;
     }
     const publicKeyHex = await this.getActiveKeyFromSigner();
@@ -345,24 +346,24 @@ export default class SignerDemo extends React.Component {
     if (verifyMessageSignature(CLPublicKey.fromHex(publicKeyHex), this.state.message, decodeBase16(signature))) {
       this.setState({
         signature: signature,
-        currentNotification: {text: 'Signature Verified', severity: 'success'},
+        currentNotification: { text: 'Signature Verified', severity: 'success' },
         showAlert: true
       });
     } else {
       this.setState({
-        currentNotification: {text: 'Signature Verification Failed', severity: 'error'},
+        currentNotification: { text: 'Signature Verification Failed', severity: 'error' },
         showAlert: true
       });
     }
   }
 
   showDeploy() {
-    this.setState({modalOpen: true});
+    this.setState({ modalOpen: true });
   }
 
   handleDeploySelect = (event => {
     const dType = event.target.value;
-    this.setState({deployType: dType});
+    this.setState({ deployType: dType });
   });
 
   render() {
@@ -384,7 +385,7 @@ export default class SignerDemo extends React.Component {
             Signer Demonstration
           </Typography>
           <img src={logo} className="App-logo" alt="logo" />
-          { this.state.signerConnected ? this.state.signerLocked ?
+          {this.state.signerConnected ? this.state.signerLocked ?
             <Typography
               style={{
                 background: 'indigo',
@@ -406,18 +407,18 @@ export default class SignerDemo extends React.Component {
                 padding: '.5rem 0'
               }}
             >
-              Connected with: { this.truncateString(this.state.activeKey, 10, 10) }
+              Connected with: {this.truncateString(this.state.activeKey, 10, 10)}
             </Typography>
-          :         
+            :
             <Button
               size="large"
               variant="contained"
               color="primary"
               disabled={this.state.signerConnected}
-              onClick={() => {this.connectToSigner()}}
-              style={{margin: '1rem', width: '60%', backgroundColor: 'indigo', color: 'white'}}
-              >
-                Connect to Signer
+              onClick={() => { this.connectToSigner() }}
+              style={{ margin: '1rem', width: '60%', backgroundColor: 'indigo', color: 'white' }}
+            >
+              Connect to Signer
             </Button>
           }
           <FormControl fullWidth
@@ -457,17 +458,17 @@ export default class SignerDemo extends React.Component {
                 width: '60%',
                 marginTop: '.8em'
               }}
-              />}
-          <div 
+            />}
+          <div
             style={{
               width: '60%'
             }}
-            >
+          >
             <Button
               size="large"
               variant="contained"
               color="secondary"
-              onClick={() => {this.state.deployType === 'message' ? this.signMessage() : this.signDeploy()}}
+              onClick={() => { this.state.deployType === 'message' ? this.signMessage() : this.signDeploy() }}
               style={{
                 margin: '1rem',
                 marginLeft: 0,
@@ -475,10 +476,10 @@ export default class SignerDemo extends React.Component {
                 float: 'left',
                 backgroundColor: 'purple'
               }}
-              >
+            >
               Sign Deploy
             </Button>
-            <Tooltip 
+            <Tooltip
               arrow
               title="Clear"
               placement="right"
@@ -491,7 +492,7 @@ export default class SignerDemo extends React.Component {
                   margin: '.8rem',
                   color: 'springgreen'
                 }}
-                >
+              >
                 <CachedIcon />
               </IconButton>
             </Tooltip>
@@ -510,49 +511,53 @@ export default class SignerDemo extends React.Component {
           >
             <table style={{
               tableLayout: 'fixed',
-              width: '100%'}}
+              width: '100%'
+            }}
             >
               <tbody>
                 <tr>
                   <th style={{
-                      width: '30%'
-                    }}                  
+                    width: '30%'
+                  }}
+                  >
+                    <b style={{
+                      fontSize: '1.2rem',
+                      whiteSpace: 'nowrap'
+                    }}
                     >
-                      <b style={{
-                        fontSize: '1.2rem',
-                        whiteSpace: 'nowrap'}}
-                      >
-                        Signing Key:
-                      </b>
-                    </th>
-                  <td>{ this.state.activeKey ? this.truncateString(this.state.activeKey, 8, 8) : '' }</td>
-                </tr>
-                <tr>
-                  <th style={{
-                      width: '30%'
-                    }}                  
-                    >
-                      <b style={{
-                        fontSize: '1.2rem',
-                        whiteSpace: 'nowrap'}}
-                      >
-                        Signature:
-                      </b>
-                    </th>
-                  <td
-                    style={{
-                      paddingTop: '1rem'
-                    }}                  
-                  >{ this.state.signature ? this.truncateString(this.state.signature, 8, 8) : '' }</td>
+                      Signing Key:
+                    </b>
+                  </th>
+                  <td>{this.state.activeKey ? this.truncateString(this.state.activeKey, 8, 8) : ''}</td>
                 </tr>
                 <tr>
                   <th style={{
                     width: '30%'
-                  }}                  
+                  }}
                   >
                     <b style={{
                       fontSize: '1.2rem',
-                      whiteSpace: 'nowrap'}}
+                      whiteSpace: 'nowrap'
+                    }}
+                    >
+                      Signature:
+                    </b>
+                  </th>
+                  <td
+                    style={{
+                      paddingTop: '1rem'
+                    }}
+                  >{this.state.signature ? this.truncateString(this.state.signature, 8, 8) : ''}</td>
+                </tr>
+                <tr>
+                  <th style={{
+                    width: '30%'
+                  }}
+                  >
+                    <b style={{
+                      fontSize: '1.2rem',
+                      whiteSpace: 'nowrap'
+                    }}
                     >
                       Deploy Hash:
                     </b>
@@ -561,25 +566,25 @@ export default class SignerDemo extends React.Component {
                     style={{
                       paddingTop: '1rem'
                     }}
-                  >{ this.state.deployHash ? this.truncateString(this.state.deployHash, 8, 8) : '' }</td>
+                  >{this.state.deployHash ? this.truncateString(this.state.deployHash, 8, 8) : ''}</td>
                 </tr>
               </tbody>
-            </table>            
+            </table>
           </Paper>
           <Button
-              disabled={!this.state.deployProcessed}
-              id={this.state.deployProcessed ? "show-deploy-btn" : null}
-              size="large"
-              variant="contained"
-              color="primary"
-              onClick={() => {this.showDeploy()}}
-              style={{margin: '1rem', width: '60%'}}
-            >
+            disabled={!this.state.deployProcessed}
+            id={this.state.deployProcessed ? "show-deploy-btn" : null}
+            size="large"
+            variant="contained"
+            color="primary"
+            onClick={() => { this.showDeploy() }}
+            style={{ margin: '1rem', width: '60%' }}
+          >
             View full deploy
           </Button>
           <Modal
             open={this.state.modalOpen}
-            onClose={() => {this.handleClose()}}
+            onClose={() => { this.handleClose() }}
             style={{
               background: 'rgba(0,0,0,0.8)',
               color: 'whitesmoke',
@@ -589,18 +594,18 @@ export default class SignerDemo extends React.Component {
             }}
           >
             <pre>
-                <Fab size='small' color='secondary'
-                  onClick={() => {this.handleClose()}}
-                  style={{
-                    top: '1rem',
-                    right: '2rem',
-                    position: 'fixed'
-                  }}
-                >
-                  <CloseIcon />
-                </Fab>
-                { JSON.stringify(this.state.deploy, null, 2) }
-              </pre> 
+              <Fab size='small' color='secondary'
+                onClick={() => { this.handleClose() }}
+                style={{
+                  top: '1rem',
+                  right: '2rem',
+                  position: 'fixed'
+                }}
+              >
+                <CloseIcon />
+              </Fab>
+              {JSON.stringify(this.state.deploy, null, 2)}
+            </pre>
           </Modal>
         </header>
       </div>
