@@ -38,6 +38,14 @@ import {
   CLList,
   CLTuple3,
   verifyMessageSignature,
+  formatMessageWithHeaders,
+  signFormattedMessage,
+  Keys,
+  CLKey,
+  CLURef,
+  AccessRights,
+  CLAccountHash,
+  CLUnit
 } from 'casper-js-sdk';
 
 export default class SignerDemo extends React.Component {
@@ -215,7 +223,7 @@ export default class SignerDemo extends React.Component {
     });
     const session = DeployUtil.ExecutableDeployItem.newStoredContractByHash(
       contractHash,
-      "undelegate",
+      stakingAction,
       args
     )
 
@@ -244,17 +252,33 @@ export default class SignerDemo extends React.Component {
         break;
       }
       case 'complex': {
+        let exampleUref = new CLURef(
+          new Uint8Array(32).fill(1),
+          AccessRights.READ_WRITE
+        );
+        let exampleByteArray = new CLByteArray(publicKey.toAccountHash());
         args = RuntimeArgs.fromMap({
+          URef: exampleUref,
           List: new CLList([
             new CLString('ItemA'),
             new CLString('ItemB'),
             new CLString('ItemC')
           ]),
           Tuple3: new CLTuple3([
+            // Problem with this ByteArray @hoffmannjan
             new CLByteArray(publicKey.toAccountHash()),
             new CLBool(true),
             new CLU32(300)
-          ])
+          ]),
+          ListofKeys: new CLList([
+            new CLPublicKey(publicKey.value(), publicKey.tag),
+            new CLPublicKey(publicKey.value(), publicKey.tag),
+            new CLPublicKey(publicKey.value(), publicKey.tag)
+          ]),
+          KeyBA: new CLKey(exampleByteArray),
+          KeyUref: new CLKey(exampleUref),
+          KeyHash: new CLKey(new CLAccountHash(new Uint8Array(32).fill(1))),
+          Unit: new CLUnit()
         });
         break;
       }
@@ -317,7 +341,6 @@ export default class SignerDemo extends React.Component {
     }
     let signedDeployJSON;
     try {
-      console.log(key);
       signedDeployJSON = await Signer.sign(deployJSON, key, key);
     } catch (err) {
       this.setState({ currentNotification: { text: err.message, severity: 'error' }, showAlert: true });
@@ -342,7 +365,31 @@ export default class SignerDemo extends React.Component {
       return;
     }
     const publicKeyHex = await this.getActiveKeyFromSigner();
-    const signature = await Signer.signMessage(this.state.message, publicKeyHex);
+    let signature;
+    try {
+      signature = await Signer.signMessage(this.state.message, publicKeyHex);
+    } catch (error) {
+      this.setState({
+        currentNotification: { text: 'Signing Cancelled', severity: 'error' },
+        showAlert: true
+      });
+      return;
+    }
+
+    const secretKeyPEM = Keys.readBase64WithPEM("-----BEGIN PRIVATE KEY-----" +
+      "MC4CAQAwBQYDK2VwBCIEIJgmCMDLg0d1Xkyi6TgWPgbAUzlOedc6L4+EJji/G6Fs" +
+      "-----END PRIVATE KEY-----");
+    const secretKey = Keys.Ed25519.parsePrivateKey(secretKeyPEM);
+    const publicKey = Keys.Ed25519.privateToPublicKey(secretKey);
+    const keypair = Keys.Ed25519.parseKeyPair(publicKey, secretKey);
+    const formattedMessage = formatMessageWithHeaders(this.state.message);
+    const manualSignature = signFormattedMessage(keypair, formattedMessage);
+
+    if (signature !== manualSignature) {
+      alert('Not equal!');
+    }
+
+
     if (verifyMessageSignature(CLPublicKey.fromHex(publicKeyHex), this.state.message, decodeBase16(signature))) {
       this.setState({
         signature: signature,
