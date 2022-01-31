@@ -26,7 +26,10 @@ This aims to demostrate how a deploy could be created with the `casper-js-sdk` a
 ## Get started
 
 ### Before you begin
-Install the Signer extension from [here](https://chrome.google.com/webstore/detail/casperlabs-signer/djhndpllfiibmcdbnmaaahkhchcoijce). (Requires Chrome browser)
+Install the Signer extension from [here](https://chrome.google.com/webstore/detail/casperlabs-signer/djhndpllfiibmcdbnmaaahkhchcoijce). (Requires Chromium browser)
+### `yarn`
+
+Installs required dependencies.
 ### `yarn start`
 
 Runs the app in the development mode.\
