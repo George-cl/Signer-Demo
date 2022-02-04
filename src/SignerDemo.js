@@ -45,8 +45,14 @@ import {
   CLURef,
   AccessRights,
   CLAccountHash,
-  CLUnit
+  CLUnit,
+  CLOption,
+  CLBoolType,
+  CLResult,
+  CLU8Type,
+  CLU8
 } from 'casper-js-sdk';
+import { Some, None, Ok, Err } from 'ts-results';
 
 export default class SignerDemo extends React.Component {
 
@@ -73,16 +79,15 @@ export default class SignerDemo extends React.Component {
 
   async componentDidMount() {
     // Without the timeout it doesn't always work properly
-    setTimeout(async () => {
-      try {
-        const connected = await this.checkConnection();
-        this.setState({ signerConnected: connected })
-      } catch (err) {
-        console.log(err)
-        this.setState({ currentNotification: { text: err.message }, showAlert: true });
-      }
-    }, 100);
-    if (this.state.signerConnected) this.setState({ activeKey: await this.getActiveKeyFromSigner() })
+    // setTimeout(async () => {
+    //   try {
+    //     const connected = await this.checkConnection();
+    //     this.setState({ signerConnected: connected })
+    //   } catch (err) {
+    //     console.log(err)
+    //     this.setState({ currentNotification: { text: err.message }, showAlert: true });
+    //   }
+    // }, 100);
     window.addEventListener('signer:connected', msg => {
       this.setState({
         signerLocked: !msg.detail.isUnlocked,
@@ -138,6 +143,7 @@ export default class SignerDemo extends React.Component {
         activeKey: msg.detail.activeKey
       });
     })
+    if (this.state.signerConnected) this.setState({ activeKey: await this.getActiveKeyFromSigner() })
   }
 
   handleTransferIdChange(event) {
@@ -257,6 +263,7 @@ export default class SignerDemo extends React.Component {
           AccessRights.READ_WRITE
         );
         let exampleByteArray = new CLByteArray(publicKey.toAccountHash());
+        let resultType = { ok: new CLBoolType(), err: new CLU8Type() };
         args = RuntimeArgs.fromMap({
           URef: exampleUref,
           List: new CLList([
@@ -265,7 +272,6 @@ export default class SignerDemo extends React.Component {
             new CLString('ItemC')
           ]),
           Tuple3: new CLTuple3([
-            // Problem with this ByteArray @hoffmannjan
             new CLByteArray(publicKey.toAccountHash()),
             new CLBool(true),
             new CLU32(300)
@@ -278,7 +284,11 @@ export default class SignerDemo extends React.Component {
           KeyBA: new CLKey(exampleByteArray),
           KeyUref: new CLKey(exampleUref),
           KeyHash: new CLKey(new CLAccountHash(new Uint8Array(32).fill(1))),
-          Unit: new CLUnit()
+          Unit: new CLUnit(),
+          OptionSome: new CLOption(Some(new CLBool(true))), // Problem with this Option seems to change to a Boolean at some point
+          OptionNone: new CLOption(None, new CLBoolType()),
+          ResultOk: new CLResult(Ok(new CLBool(true)), resultType), // unproper type error
+          ResultErr: new CLResult(Err(new CLU8(1)), resultType) // unproper type error
         });
         break;
       }
