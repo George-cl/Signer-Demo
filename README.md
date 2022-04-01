@@ -1,5 +1,6 @@
 # Signer Demonstration
-
+#### Check out the demo  
+[![Netlify Status](https://api.netlify.com/api/v1/badges/9212af1b-a982-4c66-aae6-e0260a6f3a24/deploy-status)](https://george-cl-signer-demo.netlify.app/)
 ## Summary
 
 This aims to demostrate how a deploy could be created with the `casper-js-sdk` and signed with the **CasperLabs Signer** keeping it as simple as possible.
